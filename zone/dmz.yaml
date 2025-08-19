@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dmz
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dmz-proxy
+  namespace: dmz
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: dmz-proxy } }
+  template:
+    metadata: { labels: { app: dmz-proxy } }
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:stable-alpine
+          ports: [{ containerPort: 80 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dmz-proxy
+  namespace: dmz
+spec:
+  selector: { app: dmz-proxy }
+  ports: [{ port: 80, targetPort: 80 }]
