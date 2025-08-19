@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mgmt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mgmt-tool
+  namespace: mgmt
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mgmt-tool } }
+  template:
+    metadata: { labels: { app: mgmt-tool } }
+    spec:
+      containers:
+        - name: busybox
+          image: busybox
+          command: ["sleep", "3600"]
