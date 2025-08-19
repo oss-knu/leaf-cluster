@@ -1,0 +1,14 @@
+# rolebinding-db.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bind-db-group
+  namespace: db
+subjects:
+  - kind: Group
+    name: db-group           # ← teleport role에서 내려오는 kubernetes_groups
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: db-reader
+  apiGroup: rbac.authorization.k8s.io
