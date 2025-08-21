@@ -1,0 +1,26 @@
+roles: kube,app,discovery
+authToken: a109dbfc8ba2e866f7bd91a43c2d74d5
+proxyAddr: rootcluster.store:443
+kubeClusterName: wodydl0
+labels:
+  teleport.internal/resource-id: c4ee0a56-0261-4ccf-b0fb-434d79f932a6
+
+agent:
+  # 30초 이상 기다리도록 충분히 늘립니다.
+  livenessProbe:
+    httpGet:
+      path: /diag/healthz
+      port: 3000
+    initialDelaySeconds: 60
+    timeoutSeconds:      5
+    periodSeconds:       10
+    failureThreshold:    6
+
+  readinessProbe:
+    httpGet:
+      path: /diag/readyz
+      port: 3000
+    initialDelaySeconds: 60
+    timeoutSeconds:      5
+    periodSeconds:       10
+    failureThreshold:    6
