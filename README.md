@@ -1,4 +1,4 @@
-# 🌿 Leaf Cluster (k3s + Teleport Kube Agent)
+# Leaf Cluster (k3s + Teleport Kube Agent)
 
 이 저장소는 **망분리 Kubernetes 환경의 내부망 클러스터(Leaf)** 구성을 제공합니다. 
 Leaf는 **Public IP 없이 사설망**에서 동작하며, **Root Cluster의 Proxy**를 통해서만 접근됩니다.  
@@ -6,7 +6,7 @@ Kubernetes API는 외부에 직접 노출되지 않고, **mTLS Reverse Tunnel**�
 
 ---
 
-## 📑 개요
+## 개요
 - 내부망 **k3s** 단일 노드(필요 시 확장 가능)
 - **Teleport Kube Agent(Helm 차트)** 로 Root와 mTLS 역방향 터널 연결
 - Zone 기반 네임스페이스 분리(`app/db/mgmt/dmz`)
@@ -15,7 +15,7 @@ Kubernetes API는 외부에 직접 노출되지 않고, **mTLS Reverse Tunnel**�
 
 ---
 
-## 🌐 전체 아키텍처에서의 Leaf Cluster 역할
+## 전체 아키텍처에서의 Leaf Cluster 역할
 
 Leaf는 **업무 워크로드가 실제로 실행되는 내부망 영역**이며, 다음을 보장합니다.
 
@@ -35,45 +35,42 @@ Leaf는 **업무 워크로드가 실제로 실행되는 내부망 영역**이며
 
 ---
 
-## 🏗 아키텍처 (Leaf 관점)
+## 아키텍처 (Leaf 관점)
 
 ```
 [User] → Root Proxy/Auth ↔ (mTLS) ↔ Leaf: Teleport Kube Agent → K8s API
-                                       (이 저장소)
 ```
 
 - **Teleport Kube Agent**: Root와 mTLS 연결, K8s API 프록시 역할  
-- **K8s API Server**: 외부에 **직접 노출 금지**(사설망)  
 - **Namespaces (Zones)**: `app`, `db`, `mgmt`, `dmz`
 
 ---
 
-## ⚙️ 요구사항
-- **OS**: (예시) Ubuntu 22.04/24.04 LTS on 홈 서버(사설망)  
+## 요구사항
+- **OS**: (예시) Ubuntu 22.04/24.04 LTS on 홈 서버(내부망)  
 - **Kubernetes**: k3s v1.32.x (싱글 노드; 멀티 노드로 확장 가능)  
 - **Helm**: v3.18.x  
-- **Teleport Kube Agent**: OSS v17.5.x (공식 차트)  
+- **Teleport Kube Agent**: OSS v17.5.6 (공식 차트)  
 - **네트워크**: 외부 인바운드 차단, **Root로의 아웃바운드 HTTPS만 허용**
 
 ---
 
-## 📝 주요 설정 파일
+## 주요 설정 파일
 - `teleport/chart/values.yaml`  
-  - Kube Agent 설정(예: `authServer`, `joinParams.token`, `kubeClusterName` 등)  
-- `k8s-role/*.yaml`  
-  - 네임스페이스별 **Role** 정의 (예: `ns-app-readonly`)  
+- `role/*.yaml`  
+  - 네임스페이스별 **Role** 정의 (예: `db-exec-role`)  
 - `role-binding/*.yaml`  
   - Root의 `kubernetes_groups` 를 **RoleBinding**으로 연결
 
 ---
 
-## 🔧 설치 및 실행
+## 설치 및 실행
 
 ### 0) 선행: k3s 설치 (예시)
 ```bash
 curl -sfL https://get.k3s.io | sh -
 # 확인
-sudo k3s kubectl get node -o wide
+kubectl get nodes
 ```
 
 ### 1) Zone 네임스페이스 생성
@@ -86,7 +83,7 @@ kubectl create ns dmz || true
 
 ### 2) RBAC 적용 (Role → RoleBinding)
 
-#### Role
+#### Role 예시
 ```bash
 kubectl apply -f k8s-role/app-role.yaml
 kubectl apply -f k8s-role/db-role.yaml
@@ -95,7 +92,7 @@ kubectl apply -f k8s-role/dmz-role.yaml
 kubectl apply -f k8s-role/mgmt-role.yaml
 ```
 
-#### RoleBinding
+#### RoleBinding 예시
 ```bash
 kubectl apply -f role-binding/rolebinding-app.yaml
 kubectl apply -f role-binding/rolebinding-db.yaml
@@ -132,73 +129,38 @@ kubectl get ns  # Leaf의 네임스페이스 목록 확인
 
 ---
 
-## 🛡 RBAC 예시
+## RBAC 예시
 
-### Role (`k8s-role/app-role.yaml`)
+### Role (`role/db-exec-role.yaml`)
 ```yaml
+# db-role.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: ns-app-readonly
-  namespace: app
+  name: db-exec
+  namespace: db
 rules:
-- apiGroups: ["", "apps"]
-  resources: ["pods", "deployments", "replicasets", "services"]
-  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create", "get"]
 ```
 
-### RoleBinding (`role-binding/rolebinding-app.yaml`)
+### RoleBinding (`role-binding/rolebinding-db-exec.yaml`)
 ```yaml
+# rolebinding-db.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: app-readonly-binding
-  namespace: app
+  name: bind-db-exec-group
+  namespace: db
 subjects:
 - kind: Group
-  name: app-group          # Root Teleport Role의 kubernetes_groups와 동일
+  name: db-exec-group           # ← teleport role에서 내려오는 kubernetes_groups
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
-  name: ns-app-readonly
+  name: db-exec
   apiGroup: rbac.authorization.k8s.io
 ```
 
----
-
-## 📂 디렉토리 구조
-
-```
-.
-├─ .idea/
-│   ├─ .gitignore
-│   ├─ misc.xml
-│   ├─ modules.xml
-│   ├─ private-cluster.iml
-│   └─ vcs.xml
-│
-├─ k8s-role/
-│   ├─ app-role.yaml
-│   ├─ db-exec-role.yaml
-│   ├─ db-role.yaml
-│   ├─ dmz-role.yaml
-│   └─ mgmt-role.yaml
-│
-├─ role-binding/
-│   ├─ roleBinding-db-exec.yaml
-│   ├─ rolebinding-app.yaml
-│   ├─ rolebinding-db.yaml
-│   ├─ rolebinding-dmz.yaml
-│   └─ rolebinding-mgmt.yaml
-│
-├─ teleport/
-│   └─ chart/
-│      └─ values.yaml
-│
-├─ zone/
-│   └─ ... (app/db/mgmt/dmz 관련 매니페스트)
-│
-├─ LICENSE
-└─ README.md
-```
 
